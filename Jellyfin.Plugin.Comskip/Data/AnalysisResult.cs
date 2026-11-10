@@ -47,6 +47,15 @@ public class AnalysisResult
     /// <summary>Gets or sets how long comskip took, in seconds.</summary>
     public double DurationSeconds { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether commercials were cut out of this file (2.0).</summary>
+    public bool Cut { get; set; }
+
+    /// <summary>Gets or sets how many seconds were removed by the cut.</summary>
+    public double RemovedSeconds { get; set; }
+
+    /// <summary>Gets or sets why removing commercials failed or was skipped for this exact file; it is not retried until the file changes.</summary>
+    public string? CutError { get; set; }
+
     /// <summary>Gets or sets the commercial breaks (already padded and filtered).</summary>
     public List<CommercialBreak> Breaks { get; set; } = [];
 }

@@ -122,6 +122,29 @@
                         <div class="fieldDescription checkboxFieldDescription">For Kodi / MPV. Requires write access to the media folder.</div>
                     </div>
 
+                    <h3 class="sectionTitle">Remove commercials (permanent)</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="RemoveCommercials" type="checkbox" is="emby-checkbox" />
+                            <span>Cut detected commercials out of Live TV recordings</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            <b>This permanently rewrites your .ts recordings and keeps no backup.</b> Only Live TV recordings are cut.
+                            Turning this on also cuts every recording that has already been analyzed. Wrongly detected show content is lost for good.
+                            Cuts are made on keyframes without re-encoding, so up to about a second of a commercial can remain at each join.
+                            Files that are being watched are cut later.
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CutMaxRemovedPercent">Never remove more than (% of a recording)</label>
+                        <input id="CutMaxRemovedPercent" type="number" is="emby-input" min="1" max="95" />
+                        <div class="fieldDescription">If detection would remove more than this, the file is left alone and skip segments are used instead.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CutMinRemainingMinutes">Never leave less than (minutes)</label>
+                        <input id="CutMinRemainingMinutes" type="number" is="emby-input" min="0" />
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -136,8 +159,8 @@
                 var page = document.querySelector('#ComskipConfigPage');
                 var textFields = ['ComskipPath', 'FfmpegPath', 'ComskipIniPath', 'Sanitize'];
                 var numberFields = ['ComskipThreads', 'MaxConcurrentJobs', 'TimeoutMinutes', 'SettleSeconds',
-                    'MinSegmentSeconds', 'StartPaddingSeconds', 'EndPaddingSeconds'];
-                var boolFields = ['IncludeLiveTvRecordings', 'AutoAnalyzeNewItems', 'HardwareDecode', 'LowPriority', 'WriteEdlSidecar'];
+                    'MinSegmentSeconds', 'StartPaddingSeconds', 'EndPaddingSeconds', 'CutMaxRemovedPercent', 'CutMinRemainingMinutes'];
+                var boolFields = ['IncludeLiveTvRecordings', 'AutoAnalyzeNewItems', 'HardwareDecode', 'LowPriority', 'WriteEdlSidecar', 'RemoveCommercials'];
 
                 function normalizeId(id) { return (id || '').replace(/-/g, '').toLowerCase(); }
 
@@ -154,6 +177,10 @@
                         html += '<div>comskip: ' + (s.ComskipPath ? '✅ ' + escapeHtml(s.ComskipPath) : '❌ not found — install comskip or set its path below') + '</div>';
                         html += '<div>ffmpeg: ' + (s.FfmpegPath ? '✅ ' + escapeHtml(s.FfmpegPath) : '⚠️ not found (sanitizing disabled)') + '</div>';
                         html += '<div>Libraries in scope: ' + s.LibrariesInScope + ' · Analyzed items: ' + s.AnalyzedItems + ' · Queued: ' + s.Queued + '</div>';
+                        html += '<div>Commercial removal: ' + (s.RemoveCommercials ? 'on' : 'off') + ' · Recordings cut: ' + s.CutRecordings + '</div>';
+                        if (!s.CutLedgerHealthy) {
+                            html += '<div>⚠️ The cut record (cut-ledger.json) is damaged, so commercial removal is paused. Check the Jellyfin log.</div>';
+                        }
                         if (s.Running && s.Running.length) {
                             html += '<div>Running: ' + s.Running.map(escapeHtml).join('<br>') + '</div>';
                         }
@@ -204,6 +231,11 @@
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        var turningOn = page.querySelector('#RemoveCommercials').checked && !config.RemoveCommercials;
+                        if (turningOn && !window.confirm('Turn on commercial removal?\n\nEvery Live TV recording that has been analyzed will be permanently rewritten without its commercials. No backup is kept.')) {
+                            Dashboard.hideLoadingMsg();
+                            return;
+                        }
                         textFields.forEach(function (k) { config[k] = page.querySelector('#' + k).value.trim(); });
                         numberFields.forEach(function (k) {
                             var raw = page.querySelector('#' + k).value;

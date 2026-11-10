@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -85,7 +84,7 @@ public class ComskipRunner
             await File.WriteAllTextAsync(iniPath, BuildIni(config), token).ConfigureAwait(false);
 
             var args = new List<string> { "--ini=" + iniPath, "--output=" + workDir, input };
-            var (exitCode, tail) = await RunProcessAsync(comskip, args, workDir, config.LowPriority, token).ConfigureAwait(false);
+            var (exitCode, tail) = await ProcessRunner.RunAsync(comskip, args, workDir, config.LowPriority, _logger, token).ConfigureAwait(false);
 
             var edl = Directory.EnumerateFiles(workDir, "*.edl").FirstOrDefault();
             if (edl is not null)
@@ -176,7 +175,7 @@ public class ComskipRunner
             "-f", "mpegts", output
         };
 
-        var (exitCode, tail) = await RunProcessAsync(ffmpeg, args, workDir, true, token).ConfigureAwait(false);
+        var (exitCode, tail) = await ProcessRunner.RunAsync(ffmpeg, args, workDir, true, _logger, token).ConfigureAwait(false);
         if (exitCode == 0 && File.Exists(output) && new FileInfo(output).Length > 0)
         {
             return output;
@@ -184,98 +183,5 @@ public class ComskipRunner
 
         _logger.LogWarning("Sanitizing remux failed for {Path} (exit {Code}): {Tail}. Analyzing the original instead.", mediaPath, exitCode, tail);
         return null;
-    }
-
-    private async Task<(int ExitCode, string Tail)> RunProcessAsync(
-        string fileName,
-        IEnumerable<string> args,
-        string workingDirectory,
-        bool lowPriority,
-        CancellationToken token)
-    {
-        var psi = new ProcessStartInfo(fileName)
-        {
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = false
-        };
-        foreach (var a in args)
-        {
-            psi.ArgumentList.Add(a);
-        }
-
-        _logger.LogDebug("Running {File} {Args}", fileName, string.Join(' ', psi.ArgumentList));
-
-        // Keep only the last lines of output for error messages; comskip can be very chatty.
-        var tail = new Queue<string>();
-        void Collect(object? sender, DataReceivedEventArgs e)
-        {
-            if (e.Data is null)
-            {
-                return;
-            }
-
-            lock (tail)
-            {
-                tail.Enqueue(e.Data);
-                while (tail.Count > 15)
-                {
-                    tail.Dequeue();
-                }
-            }
-        }
-
-        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        process.OutputDataReceived += Collect;
-        process.ErrorDataReceived += Collect;
-
-        if (!process.Start())
-        {
-            return (-1, "process did not start");
-        }
-
-        if (lowPriority)
-        {
-            try
-            {
-                process.PriorityClass = ProcessPriorityClass.BelowNormal;
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
-            {
-                _logger.LogDebug(ex, "Could not lower process priority");
-            }
-        }
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        try
-        {
-            await process.WaitForExitAsync(token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-            {
-                _logger.LogDebug(ex, "Process already exited");
-            }
-
-            throw;
-        }
-
-        string tailText;
-        lock (tail)
-        {
-            tailText = string.Join(" | ", tail);
-        }
-
-        return (process.ExitCode, tailText);
     }
 }

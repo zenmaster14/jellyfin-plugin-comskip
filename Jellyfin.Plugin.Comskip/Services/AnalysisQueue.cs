@@ -118,7 +118,7 @@ public sealed class AnalysisQueue : BackgroundService
             }
 
             _pending.TryRemove(itemId, out _);
-            if (outcome is AnalysisOutcome.Analyzed or AnalysisOutcome.Failed)
+            if (outcome is AnalysisOutcome.Analyzed or AnalysisOutcome.Failed or AnalysisOutcome.Cut or AnalysisOutcome.CutNotDone)
             {
                 Remember($"{DateTime.Now:yyyy-MM-dd HH:mm} {outcome}: {item.Name}");
             }

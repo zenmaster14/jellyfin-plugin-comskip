@@ -76,4 +76,18 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gets or sets a value indicating whether a Kodi/MPV-style .edl file is written next to the media.</summary>
     public bool WriteEdlSidecar { get; set; }
+
+    // ---- Commercial removal (2.0) ------------------------------------------------
+
+    /// <summary>
+    /// Gets or sets a value indicating whether detected commercials are permanently cut out of Live TV
+    /// recordings (.ts), replacing the original file. No backup is kept.
+    /// </summary>
+    public bool RemoveCommercials { get; set; }
+
+    /// <summary>Gets or sets the largest share of a recording (percent) that may be removed; above this the file is left alone.</summary>
+    public int CutMaxRemovedPercent { get; set; } = 50;
+
+    /// <summary>Gets or sets the shortest result (minutes) a cut may leave; below this the file is left alone.</summary>
+    public int CutMinRemainingMinutes { get; set; } = 5;
 }

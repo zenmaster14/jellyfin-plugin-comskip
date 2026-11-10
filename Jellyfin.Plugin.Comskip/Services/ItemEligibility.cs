@@ -19,7 +19,7 @@ public class ItemEligibility
     private readonly Lock _lock = new();
 
     private DateTime _cachedAt = DateTime.MinValue;
-    private (Guid[] LibraryIds, string[] Roots) _cached = (Array.Empty<Guid>(), Array.Empty<string>());
+    private Scope _cached = new(Array.Empty<Guid>(), Array.Empty<string>(), Array.Empty<string>());
 
     /// <summary>Initializes a new instance of the <see cref="ItemEligibility"/> class.</summary>
     /// <param name="libraryManager">Library manager.</param>
@@ -38,6 +38,31 @@ public class ItemEligibility
     /// <summary>Gets the library ids in scope and their root paths.</summary>
     /// <returns>Library ids and root folders.</returns>
     public (Guid[] LibraryIds, string[] Roots) GetScope()
+    {
+        var scope = CurrentScope();
+        return (scope.LibraryIds, scope.Roots);
+    }
+
+    /// <summary>
+    /// Returns true when the item is an eligible file inside a Live TV recording folder. Commercial
+    /// removal is restricted to these.
+    /// </summary>
+    /// <param name="item">Item.</param>
+    /// <returns>True for DVR recordings.</returns>
+    public bool IsLiveTvRecording(BaseItem? item)
+    {
+        if (!IsEligible(item))
+        {
+            return false;
+        }
+
+        // Recording folders are looked up even when "Live TV recordings" analysis is off, so a
+        // recording in a manually selected library is still recognised as one.
+        var roots = CurrentScope().RecordingRoots;
+        return roots.Any(root => IsUnder(item!.Path, root));
+    }
+
+    private Scope CurrentScope()
     {
         lock (_lock)
         {
@@ -89,16 +114,17 @@ public class ItemEligibility
         return path.StartsWith(normalizedRoot, comparison);
     }
 
-    private (Guid[] LibraryIds, string[] Roots) ComputeScope()
+    private Scope ComputeScope()
     {
         var config = Plugin.Instance?.Configuration;
         if (config is null)
         {
-            return (Array.Empty<Guid>(), Array.Empty<string>());
+            return new Scope(Array.Empty<Guid>(), Array.Empty<string>(), Array.Empty<string>());
         }
 
         var selected = new HashSet<string>(config.SelectedLibraryIds.Select(Normalize), StringComparer.OrdinalIgnoreCase);
-        var recordingRoots = config.IncludeLiveTvRecordings ? GetRecordingRoots() : Array.Empty<string>();
+        var allRecordingRoots = GetRecordingRoots();
+        var recordingRoots = config.IncludeLiveTvRecordings ? allRecordingRoots : Array.Empty<string>();
 
         var ids = new List<Guid>();
         var roots = new List<string>();
@@ -129,7 +155,7 @@ public class ItemEligibility
         }
 
         roots.AddRange(recordingRoots);
-        return (ids.ToArray(), roots.Distinct().ToArray());
+        return new Scope(ids.ToArray(), roots.Distinct().ToArray(), allRecordingRoots);
     }
 
     private static bool SamePathOrUnder(string path, string root)
@@ -166,6 +192,8 @@ public class ItemEligibility
 
         return roots.ToArray();
     }
+
+    private sealed record Scope(Guid[] LibraryIds, string[] Roots, string[] RecordingRoots);
 
     private static string Normalize(string id) => Guid.TryParse(id, out var g) ? g.ToString("N") : id;
 }

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- The cutting engine has no Jellyfin dependencies, so it is compiled straight into the tests. -->
+  <ItemGroup>
+    <Compile Include="../../Jellyfin.Plugin.Comskip/Cutting/TsCutter.cs" Link="Engine/TsCutter.cs" />
+    <Compile Include="../../Jellyfin.Plugin.Comskip/Comskip/ProcessRunner.cs" Link="Engine/ProcessRunner.cs" />
+    <Compile Include="../../Jellyfin.Plugin.Comskip/Comskip/EdlParser.cs" Link="Engine/EdlParser.cs" />
+    <Compile Include="../../Jellyfin.Plugin.Comskip/Data/AnalysisResult.cs" Link="Engine/AnalysisResult.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

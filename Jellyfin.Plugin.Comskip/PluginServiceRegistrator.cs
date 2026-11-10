@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.Comskip.Comskip;
+using Jellyfin.Plugin.Comskip.Cutting;
 using Jellyfin.Plugin.Comskip.Data;
 using Jellyfin.Plugin.Comskip.Providers;
 using Jellyfin.Plugin.Comskip.Services;
@@ -20,6 +21,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ComskipRunner>();
         serviceCollection.AddSingleton<ResultStore>();
         serviceCollection.AddSingleton<ItemEligibility>();
+        serviceCollection.AddSingleton<CutLedger>();
+        serviceCollection.AddSingleton<CommercialCutter>();
         serviceCollection.AddSingleton<CommercialAnalyzer>();
 
         serviceCollection.AddSingleton<AnalysisQueue>();

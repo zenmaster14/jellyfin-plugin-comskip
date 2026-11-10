@@ -4,3 +4,6 @@ out/
 *.zip
 .vs/
 .idea/
+
+tests/**/bin/
+tests/**/obj/

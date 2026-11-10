@@ -19,6 +19,12 @@ jobs:
       - name: Build
         run: dotnet publish Jellyfin.Plugin.Comskip/Jellyfin.Plugin.Comskip.csproj -c Release -o out
 
+      - name: Install ffmpeg for the cutting tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Test
+        run: dotnet test tests/Jellyfin.Plugin.Comskip.Tests/Jellyfin.Plugin.Comskip.Tests.csproj -c Release --logger "console;verbosity=detailed"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Jellyfin.Plugin.Comskip

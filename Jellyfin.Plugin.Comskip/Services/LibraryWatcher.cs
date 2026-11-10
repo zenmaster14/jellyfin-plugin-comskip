@@ -1,6 +1,10 @@
+using Jellyfin.Plugin.Comskip.Cutting;
 using Jellyfin.Plugin.Comskip.Data;
+using Jellyfin.Plugin.Comskip.Configuration;
+using Jellyfin.Plugin.Comskip.ScheduledTasks;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Plugins;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
 
 namespace Jellyfin.Plugin.Comskip.Services;
@@ -16,18 +20,31 @@ public sealed class LibraryWatcher : IHostedService
     private readonly ItemEligibility _eligibility;
     private readonly AnalysisQueue _queue;
     private readonly ResultStore _store;
+    private readonly CutLedger _ledger;
+    private readonly ITaskManager _taskManager;
+    private bool _removeCommercials;
 
     /// <summary>Initializes a new instance of the <see cref="LibraryWatcher"/> class.</summary>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="eligibility">Eligibility rules.</param>
     /// <param name="queue">Analysis queue.</param>
     /// <param name="store">Result store.</param>
-    public LibraryWatcher(ILibraryManager libraryManager, ItemEligibility eligibility, AnalysisQueue queue, ResultStore store)
+    /// <param name="ledger">Cut ledger.</param>
+    /// <param name="taskManager">Scheduled task manager.</param>
+    public LibraryWatcher(
+        ILibraryManager libraryManager,
+        ItemEligibility eligibility,
+        AnalysisQueue queue,
+        ResultStore store,
+        CutLedger ledger,
+        ITaskManager taskManager)
     {
         _libraryManager = libraryManager;
         _eligibility = eligibility;
         _queue = queue;
         _store = store;
+        _ledger = ledger;
+        _taskManager = taskManager;
     }
 
     /// <inheritdoc />
@@ -38,6 +55,7 @@ public sealed class LibraryWatcher : IHostedService
         _libraryManager.ItemRemoved += OnItemRemoved;
         if (Plugin.Instance is not null)
         {
+            _removeCommercials = Plugin.Instance.Configuration.RemoveCommercials;
             Plugin.Instance.ConfigurationChanged += OnConfigurationChanged;
         }
 
@@ -80,8 +98,22 @@ public sealed class LibraryWatcher : IHostedService
         if (e.Item is not null)
         {
             _store.Delete(e.Item.Id);
+            _ledger.Remove(e.Item.Id);
         }
     }
 
-    private void OnConfigurationChanged(object? sender, BasePluginConfiguration e) => _eligibility.Invalidate();
+    private void OnConfigurationChanged(object? sender, BasePluginConfiguration e)
+    {
+        _eligibility.Invalidate();
+
+        // Turning commercial removal on applies it to every recording already analyzed, right away
+        // rather than at the next nightly run.
+        var enabled = e is PluginConfiguration config && config.RemoveCommercials;
+        if (enabled && !_removeCommercials)
+        {
+            _taskManager.QueueScheduledTask<DetectCommercialsTask>();
+        }
+
+        _removeCommercials = enabled;
+    }
 }

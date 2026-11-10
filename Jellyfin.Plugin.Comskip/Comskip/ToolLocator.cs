@@ -68,4 +68,23 @@ public class ToolLocator
         var jellyfinFfmpeg = _mediaEncoder.EncoderPath;
         return !string.IsNullOrEmpty(jellyfinFfmpeg) && File.Exists(jellyfinFfmpeg) ? jellyfinFfmpeg : null;
     }
+
+    /// <summary>Finds ffprobe: next to a configured ffmpeg, else Jellyfin's ffprobe.</summary>
+    /// <returns>Full path or null.</returns>
+    public string? FindFfprobe()
+    {
+        var configured = Plugin.Instance?.Configuration.FfmpegPath;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var dir = Path.GetDirectoryName(configured) ?? string.Empty;
+            var sibling = Path.Combine(dir, OperatingSystem.IsWindows() ? "ffprobe.exe" : "ffprobe");
+            if (File.Exists(sibling))
+            {
+                return sibling;
+            }
+        }
+
+        var jellyfinProbe = _mediaEncoder.ProbePath;
+        return !string.IsNullOrEmpty(jellyfinProbe) && File.Exists(jellyfinProbe) ? jellyfinProbe : null;
+    }
 }

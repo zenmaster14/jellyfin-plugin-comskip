@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.Comskip.Cutting;
 using Jellyfin.Plugin.Comskip.Data;
 using Jellyfin.Plugin.Comskip.Services;
 using MediaBrowser.Controller.Dto;
@@ -23,6 +24,8 @@ public class DetectCommercialsTask : IScheduledTask
     private readonly ItemEligibility _eligibility;
     private readonly CommercialAnalyzer _analyzer;
     private readonly ResultStore _store;
+    private readonly CutLedger _ledger;
+    private readonly AnalysisQueue _queue;
 
     /// <summary>Initializes a new instance of the <see cref="DetectCommercialsTask"/> class.</summary>
     /// <param name="logger">Logger.</param>
@@ -30,18 +33,24 @@ public class DetectCommercialsTask : IScheduledTask
     /// <param name="eligibility">Eligibility rules.</param>
     /// <param name="analyzer">Analyzer.</param>
     /// <param name="store">Result store.</param>
+    /// <param name="ledger">Cut ledger.</param>
+    /// <param name="queue">Analysis queue (for items that must wait).</param>
     public DetectCommercialsTask(
         ILogger<DetectCommercialsTask> logger,
         ILibraryManager libraryManager,
         ItemEligibility eligibility,
         CommercialAnalyzer analyzer,
-        ResultStore store)
+        ResultStore store,
+        CutLedger ledger,
+        AnalysisQueue queue)
     {
         _logger = logger;
         _libraryManager = libraryManager;
         _eligibility = eligibility;
         _analyzer = analyzer;
         _store = store;
+        _ledger = ledger;
+        _queue = queue;
     }
 
     /// <inheritdoc />
@@ -51,7 +60,7 @@ public class DetectCommercialsTask : IScheduledTask
     public string Key => "ComskipDetectCommercials";
 
     /// <inheritdoc />
-    public string Description => "Runs comskip on recordings and selected libraries that have not been analyzed yet, and publishes the results as Commercial segments.";
+    public string Description => "Runs comskip on recordings and selected libraries that have not been analyzed yet and publishes the results as Commercial segments. If commercial removal is on, also cuts commercials out of Live TV recordings.";
 
     /// <inheritdoc />
     public string Category => "Comskip";
@@ -115,6 +124,12 @@ public class DetectCommercialsTask : IScheduledTask
                     outcome = AnalysisOutcome.Failed;
                 }
 
+                if (outcome == AnalysisOutcome.Deferred)
+                {
+                    // Being recorded or watched right now: let the background queue retry it.
+                    _queue.Enqueue(item.Id, TimeSpan.FromMinutes(5));
+                }
+
                 lock (counts)
                 {
                     counts[outcome] = counts.GetValueOrDefault(outcome) + 1;
@@ -144,6 +159,14 @@ public class DetectCommercialsTask : IScheduledTask
             {
                 _store.Delete(id);
                 removed++;
+            }
+        }
+
+        foreach (var id in _ledger.ItemIds())
+        {
+            if (_libraryManager.GetItemById(id) is null)
+            {
+                _ledger.Remove(id);
             }
         }
 

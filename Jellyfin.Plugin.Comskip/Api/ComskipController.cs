@@ -1,5 +1,6 @@
 using System.Net.Mime;
 using Jellyfin.Plugin.Comskip.Comskip;
+using Jellyfin.Plugin.Comskip.Cutting;
 using Jellyfin.Plugin.Comskip.Data;
 using Jellyfin.Plugin.Comskip.Services;
 using MediaBrowser.Common.Api;
@@ -23,6 +24,7 @@ public class ComskipController : ControllerBase
     private readonly CommercialAnalyzer _analyzer;
     private readonly ResultStore _store;
     private readonly ItemEligibility _eligibility;
+    private readonly CutLedger _ledger;
 
     /// <summary>Initializes a new instance of the <see cref="ComskipController"/> class.</summary>
     /// <param name="libraryManager">Library manager.</param>
@@ -31,13 +33,15 @@ public class ComskipController : ControllerBase
     /// <param name="analyzer">Analyzer.</param>
     /// <param name="store">Result store.</param>
     /// <param name="eligibility">Eligibility rules.</param>
+    /// <param name="ledger">Cut ledger.</param>
     public ComskipController(
         ILibraryManager libraryManager,
         ToolLocator tools,
         AnalysisQueue queue,
         CommercialAnalyzer analyzer,
         ResultStore store,
-        ItemEligibility eligibility)
+        ItemEligibility eligibility,
+        CutLedger ledger)
     {
         _libraryManager = libraryManager;
         _tools = tools;
@@ -45,6 +49,7 @@ public class ComskipController : ControllerBase
         _analyzer = analyzer;
         _store = store;
         _eligibility = eligibility;
+        _ledger = ledger;
     }
 
     /// <summary>Gets tool detection and queue status.</summary>
@@ -61,6 +66,9 @@ public class ComskipController : ControllerBase
             Queued = _queue.PendingCount,
             Running = _analyzer.Running.Values.ToArray(),
             AnalyzedItems = _store.Count(),
+            RemoveCommercials = Plugin.Instance?.Configuration.RemoveCommercials == true,
+            CutRecordings = _ledger.Count,
+            CutLedgerHealthy = _ledger.IsHealthy,
             LibrariesInScope = libraryIds.Length,
             ScopeFolders = roots,
             Recent = _queue.Recent

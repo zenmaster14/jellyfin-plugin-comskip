@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Jellyfin.Plugin.Comskip.Comskip;
+using Jellyfin.Plugin.Comskip.Cutting;
 using Jellyfin.Plugin.Comskip.Data;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -30,7 +31,13 @@ public enum AnalysisOutcome
     Failed,
 
     /// <summary>Another run for this item is in progress.</summary>
-    AlreadyRunning
+    AlreadyRunning,
+
+    /// <summary>Commercials were cut out of the recording.</summary>
+    Cut,
+
+    /// <summary>Removing commercials was declined by a safety guard or failed; skip segments are used instead.</summary>
+    CutNotDone
 }
 
 /// <summary>
@@ -46,6 +53,8 @@ public sealed class CommercialAnalyzer : IDisposable
     private readonly ItemEligibility _eligibility;
     private readonly ComskipRunner _runner;
     private readonly ResultStore _store;
+    private readonly CommercialCutter _cutter;
+    private readonly CutLedger _ledger;
     private readonly SemaphoreSlim _slots;
     private readonly ConcurrentDictionary<Guid, string> _running = new();
 
@@ -57,6 +66,8 @@ public sealed class CommercialAnalyzer : IDisposable
     /// <param name="eligibility">Eligibility rules.</param>
     /// <param name="runner">Comskip runner.</param>
     /// <param name="store">Result store.</param>
+    /// <param name="cutter">Commercial cutter.</param>
+    /// <param name="ledger">Cut ledger.</param>
     public CommercialAnalyzer(
         ILogger<CommercialAnalyzer> logger,
         ILibraryManager libraryManager,
@@ -64,7 +75,9 @@ public sealed class CommercialAnalyzer : IDisposable
         IServiceProvider services,
         ItemEligibility eligibility,
         ComskipRunner runner,
-        ResultStore store)
+        ResultStore store,
+        CommercialCutter cutter,
+        CutLedger ledger)
     {
         _logger = logger;
         _libraryManager = libraryManager;
@@ -73,6 +86,8 @@ public sealed class CommercialAnalyzer : IDisposable
         _eligibility = eligibility;
         _runner = runner;
         _store = store;
+        _cutter = cutter;
+        _ledger = ledger;
         _slots = new SemaphoreSlim(Math.Clamp(Plugin.Instance?.Configuration.MaxConcurrentJobs ?? 1, 1, 8));
     }
 
@@ -91,7 +106,17 @@ public sealed class CommercialAnalyzer : IDisposable
             return AnalysisOutcome.NotEligible;
         }
 
-        if (!force && ResultStore.Matches(_store.Get(item.Id), item.Path))
+        // A file this plugin already cut: never analyze or cut it again (the cut removed the breaks).
+        if (!force && _ledger.IsCut(item.Id, item.Path))
+        {
+            EnsureCutResult(item);
+            return AnalysisOutcome.UpToDate;
+        }
+
+        var stored = _store.Get(item.Id);
+        var upToDate = !force && ResultStore.Matches(stored, item.Path);
+        var cutDue = upToDate && _cutter.WantsCut(item, stored);
+        if (upToDate && !cutDue)
         {
             return AnalysisOutcome.UpToDate;
         }
@@ -111,7 +136,30 @@ public sealed class CommercialAnalyzer : IDisposable
             await _slots.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await RunAsync(item, cancellationToken).ConfigureAwait(false);
+                if (!cutDue)
+                {
+                    var outcome = await RunAsync(item, cancellationToken).ConfigureAwait(false);
+                    if (outcome != AnalysisOutcome.Analyzed)
+                    {
+                        return outcome;
+                    }
+
+                    stored = _store.Get(item.Id);
+
+                    // A forced re-analysis of an already-cut file must never cut it again.
+                    if (_ledger.IsCut(item.Id, item.Path) || !_cutter.WantsCut(item, stored))
+                    {
+                        return AnalysisOutcome.Analyzed;
+                    }
+                }
+
+                var cut = await _cutter.CutAsync(item, stored!, cancellationToken).ConfigureAwait(false);
+                return cut switch
+                {
+                    CutOutcome.Cut => AnalysisOutcome.Cut,
+                    CutOutcome.Deferred => AnalysisOutcome.Deferred,
+                    _ => AnalysisOutcome.CutNotDone
+                };
             }
             finally
             {
@@ -136,6 +184,30 @@ public sealed class CommercialAnalyzer : IDisposable
 
     /// <inheritdoc />
     public void Dispose() => _slots.Dispose();
+
+    private void EnsureCutResult(BaseItem item)
+    {
+        var existing = _store.Get(item.Id);
+        if (ResultStore.Matches(existing, item.Path))
+        {
+            return;
+        }
+
+        // Jellyfin prunes plugin data when it notices the rewritten file; restore an empty result
+        // so no stale skip segments are served.
+        var info = new FileInfo(item.Path);
+        _store.Save(new AnalysisResult
+        {
+            ItemId = item.Id,
+            Path = item.Path,
+            FileSize = info.Length,
+            LastWriteTicks = info.LastWriteTimeUtc.Ticks,
+            AnalyzedAtUtc = DateTime.UtcNow,
+            Status = AnalysisStatus.Success,
+            Cut = true,
+            Breaks = []
+        });
+    }
 
     private bool IsReady(string path)
     {
