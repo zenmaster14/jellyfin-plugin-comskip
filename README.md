@@ -18,11 +18,14 @@ It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthril
 - **Jellyfin 12.0 or newer.** Plugins built for 10.11 do not load on 12.x, and this one does not load on 10.11.
 - **comskip installed on the Jellyfin server**, either on `PATH` or at a path you enter in the settings:
   - Ubuntu/Debian bare metal: `sudo apt install comskip`
-  - Docker: build a small image on top of the official one. If your base image's repositories don't carry comskip, build it from source.
-    ```dockerfile
-    FROM jellyfin/jellyfin:latest
-    RUN apt-get update && apt-get install -y --no-install-recommends comskip && rm -rf /var/lib/apt/lists/*
+  - **Docker:** the official image is based on Debian 13, which no longer ships comskip. Use the ready-made image this repository builds instead: the official Jellyfin image with comskip compiled in, rebuilt every week.
+    ```yaml
+    services:
+      jellyfin:
+        image: ghcr.io/zenmaster14/jellyfin-comskip:latest   # instead of jellyfin/jellyfin
+        # ...everything else stays the same
     ```
+    The recipe is in [`docker/Dockerfile`](docker/Dockerfile) if you'd rather build it yourself.
 - ffmpeg is optional. By default the plugin uses Jellyfin's own `jellyfin-ffmpeg` for the sanitizing remux.
 
 ## Install
