@@ -25,7 +25,9 @@ ffmpeg -hide_banner -v error -y \
 touch -d '1 hour ago' "$ROOT/media/Demo Show/Season 01/Demo Show S01E01.ts"
 
 docker run -d --name jellyfin -p 8096:8096 -v "$ROOT/config:/config" -v "$ROOT/media:/media:ro" jellyfin/jellyfin:latest
-for i in $(seq 1 90); do curl -fs "$URL/System/Info/Public" >/dev/null && break; sleep 2; done
+# Public info answers while first-start database migrations are still running; wait until the
+# setup wizard endpoint itself responds.
+for i in $(seq 1 150); do curl -fs "$URL/Startup/Configuration" >/dev/null 2>&1 && break; sleep 2; done
 curl -fs "$URL/System/Info/Public"; echo
 
 # Setup wizard
