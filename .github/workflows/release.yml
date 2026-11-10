@@ -1,7 +1,7 @@
 # Bump `version:` in build.yaml and push to main (or run this workflow by hand) to build the
 # plugin, publish a GitHub release with the zip and add the version to manifest.json.
 # Users install from:
-#   https://raw.githubusercontent.com/<owner>/<repo>/main/manifest.json
+#   https://raw.githubusercontent.com/zenmaster14/jellyfin-plugin-comskip/main/manifest.json
 name: Release
 
 on:

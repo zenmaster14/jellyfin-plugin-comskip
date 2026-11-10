@@ -29,11 +29,14 @@ It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthril
 
 ### From a plugin repository (recommended)
 
-1. Push this project to your own GitHub repository.
-2. Set `version:` in `build.yaml` (e.g. `1.0.0.0`) and push to `main`. The **Release** workflow builds the DLL, publishes `comskip_1.0.0.0.zip` as a GitHub release, and adds the version to `manifest.json`. You can also start it by hand from the repo's **Actions** tab.
-3. In Jellyfin, go to **Dashboard → Plugins → Repositories → +** and add
-   `https://raw.githubusercontent.com/<you>/<repo>/main/manifest.json`
-4. Under **Catalog**, install **Comskip**, then restart Jellyfin.
+1. In Jellyfin, go to **Dashboard → Plugins → Repositories → +** and add:
+   - **Name:** `Comskip`
+   - **URL:** `https://raw.githubusercontent.com/zenmaster14/jellyfin-plugin-comskip/main/manifest.json`
+2. Under **Catalog**, install **Comskip**, then restart Jellyfin.
+
+### Publishing a new version
+
+Set `version:` in `build.yaml` (e.g. `1.0.1.0`) and push to `main`. The **Release** workflow builds the DLL, publishes `comskip_<version>.zip` as a [GitHub release](https://github.com/zenmaster14/jellyfin-plugin-comskip/releases), and adds the version to `manifest.json`, so Jellyfin offers it as an update. You can also start the workflow by hand from the repo's **Actions** tab.
 
 ### Manually
 
