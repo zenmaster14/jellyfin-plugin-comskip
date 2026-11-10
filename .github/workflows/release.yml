@@ -1,11 +1,14 @@
-# Push a tag like v1.0.0.0 to build the plugin, attach the zip to a GitHub release and
-# add the version to manifest.json. Users then install from:
+# Bump `version:` in build.yaml and push to main (or run this workflow by hand) to build the
+# plugin, publish a GitHub release with the zip and add the version to manifest.json.
+# Users install from:
 #   https://raw.githubusercontent.com/<owner>/<repo>/main/manifest.json
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['build.yaml', '.github/workflows/release.yml']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,10 +29,11 @@ jobs:
       - name: Work out version
         id: v
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$(grep -E '^version:' build.yaml | sed -E 's/^version:[[:space:]]*"?([^"]+)"?.*/\1/')"
           # Jellyfin wants four-part versions.
           while [ "$(echo "$VERSION" | tr -cd '.' | wc -c)" -lt 3 ]; do VERSION="$VERSION.0"; done
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: |
@@ -50,23 +54,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.pkg.outputs.zip }}" \
-            --title "$GITHUB_REF_NAME" --notes "Comskip plugin ${{ steps.v.outputs.version }} for Jellyfin 12.x" \
-            || gh release upload "$GITHUB_REF_NAME" "${{ steps.pkg.outputs.zip }}" --clobber
+          gh release create "${{ steps.v.outputs.tag }}" --target "$GITHUB_SHA" "${{ steps.pkg.outputs.zip }}" \
+            --title "${{ steps.v.outputs.tag }}" --notes "Comskip plugin ${{ steps.v.outputs.version }} for Jellyfin 12.x" \
+            || gh release upload "${{ steps.v.outputs.tag }}" "${{ steps.pkg.outputs.zip }}" --clobber
 
       - name: Update manifest.json
         run: |
           python3 - <<'EOF'
           import json, datetime, os
           version = "${{ steps.v.outputs.version }}"
-          url = f"https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ steps.pkg.outputs.zip }}"
+          url = f"https://github.com/${{ github.repository }}/releases/download/${{ steps.v.outputs.tag }}/${{ steps.pkg.outputs.zip }}"
           with open("manifest.json") as f:
               manifest = json.load(f)
           plugin = manifest[0]
           plugin["versions"] = [v for v in plugin["versions"] if v["version"] != version]
           plugin["versions"].insert(0, {
               "version": version,
-              "changelog": "See GitHub release ${{ github.ref_name }}",
+              "changelog": "See GitHub release ${{ steps.v.outputs.tag }}",
               "targetAbi": "12.0.0.0",
               "sourceUrl": url,
               "checksum": "${{ steps.pkg.outputs.md5 }}",
@@ -79,5 +83,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add manifest.json
-          git commit -m "manifest: add ${{ steps.v.outputs.version }}"
+          git diff --cached --quiet || git commit -m "manifest: add ${{ steps.v.outputs.version }}"
+          git pull --rebase origin main
           git push origin main

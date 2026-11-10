@@ -30,7 +30,7 @@ It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthril
 ### From a plugin repository (recommended)
 
 1. Push this project to your own GitHub repository.
-2. Push a tag such as `v1.0.0.0`. The **Release** workflow builds the DLL, attaches `comskip_1.0.0.0.zip` to a GitHub release, and adds the version to `manifest.json`.
+2. Set `version:` in `build.yaml` (e.g. `1.0.0.0`) and push to `main`. The **Release** workflow builds the DLL, publishes `comskip_1.0.0.0.zip` as a GitHub release, and adds the version to `manifest.json`. You can also start it by hand from the repo's **Actions** tab.
 3. In Jellyfin, go to **Dashboard → Plugins → Repositories → +** and add
    `https://raw.githubusercontent.com/<you>/<repo>/main/manifest.json`
 4. Under **Catalog**, install **Comskip**, then restart Jellyfin.
