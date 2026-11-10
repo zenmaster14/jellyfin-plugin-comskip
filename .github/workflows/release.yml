@@ -1,0 +1,83 @@
+# Push a tag like v1.0.0.0 to build the plugin, attach the zip to a GitHub release and
+# add the version to manifest.json. Users then install from:
+#   https://raw.githubusercontent.com/<owner>/<repo>/main/manifest.json
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out version
+        id: v
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Jellyfin wants four-part versions.
+          while [ "$(echo "$VERSION" | tr -cd '.' | wc -c)" -lt 3 ]; do VERSION="$VERSION.0"; done
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          dotnet publish Jellyfin.Plugin.Comskip/Jellyfin.Plugin.Comskip.csproj -c Release -o out \
+            -p:Version=${{ steps.v.outputs.version }} \
+            -p:AssemblyVersion=${{ steps.v.outputs.version }} \
+            -p:FileVersion=${{ steps.v.outputs.version }}
+
+      - name: Package
+        id: pkg
+        run: |
+          ZIP="comskip_${{ steps.v.outputs.version }}.zip"
+          (cd out && zip -j "../$ZIP" Jellyfin.Plugin.Comskip.dll)
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "md5=$(md5sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.pkg.outputs.zip }}" \
+            --title "$GITHUB_REF_NAME" --notes "Comskip plugin ${{ steps.v.outputs.version }} for Jellyfin 12.x" \
+            || gh release upload "$GITHUB_REF_NAME" "${{ steps.pkg.outputs.zip }}" --clobber
+
+      - name: Update manifest.json
+        run: |
+          python3 - <<'EOF'
+          import json, datetime, os
+          version = "${{ steps.v.outputs.version }}"
+          url = f"https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ steps.pkg.outputs.zip }}"
+          with open("manifest.json") as f:
+              manifest = json.load(f)
+          plugin = manifest[0]
+          plugin["versions"] = [v for v in plugin["versions"] if v["version"] != version]
+          plugin["versions"].insert(0, {
+              "version": version,
+              "changelog": "See GitHub release ${{ github.ref_name }}",
+              "targetAbi": "12.0.0.0",
+              "sourceUrl": url,
+              "checksum": "${{ steps.pkg.outputs.md5 }}",
+              "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          })
+          with open("manifest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          EOF
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "manifest: add ${{ steps.v.outputs.version }}"
+          git push origin main

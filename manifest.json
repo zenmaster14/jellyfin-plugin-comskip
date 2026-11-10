@@ -1,0 +1,12 @@
+[
+  {
+    "guid": "bc780563-77ca-4c84-bb79-8993c65bd271",
+    "name": "Comskip",
+    "overview": "Skip commercials in DVR recordings",
+    "description": "Runs comskip on Live TV recordings and selected libraries and publishes detected commercial breaks as Commercial media segments, so Jellyfin clients can show a Skip button or skip automatically.",
+    "owner": "Jellyfin Comskip contributors",
+    "category": "Live TV",
+    "imageUrl": "",
+    "versions": []
+  }
+]

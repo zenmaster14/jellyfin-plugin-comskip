@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Comskip</title>
+</head>
+<body>
+    <div id="ComskipConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <h2 class="sectionTitle">Comskip commercial detection</h2>
+                <p>
+                    Detected commercials are published as <b>Commercial</b> media segments. Each user chooses what happens in
+                    <b>Settings → Playback → Media segments</b> (“Ask to skip” or “Skip”).
+                </p>
+
+                <div class="verticalSection" style="padding:1em;border-radius:.4em;background:rgba(127,127,127,.12);margin-bottom:1.5em">
+                    <h3 style="margin-top:0">Status</h3>
+                    <div id="comskipStatus">Loading…</div>
+                </div>
+
+                <form id="ComskipConfigForm">
+                    <h3 class="sectionTitle">What to analyze</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="IncludeLiveTvRecordings" type="checkbox" is="emby-checkbox" />
+                            <span>Live TV recordings</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Analyze everything in the DVR recording folders.</div>
+                    </div>
+                    <div class="fieldDescription" style="margin:.5em 0">Also analyze these libraries:</div>
+                    <div id="libraryList" style="margin-bottom:1.5em"></div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="AutoAnalyzeNewItems" type="checkbox" is="emby-checkbox" />
+                            <span>Analyze new recordings and videos automatically</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            New items are queued as soon as Jellyfin sees them and analyzed once the recording has finished.
+                            To backfill existing files run <b>Scheduled Tasks → Comskip → Detect commercials</b>.
+                        </div>
+                    </div>
+
+                    <h3 class="sectionTitle">Tools</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ComskipPath">comskip path</label>
+                        <input id="ComskipPath" type="text" is="emby-input" placeholder="auto-detect" />
+                        <div class="fieldDescription">Leave empty to search PATH (e.g. /usr/bin/comskip).</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="FfmpegPath">ffmpeg path</label>
+                        <input id="FfmpegPath" type="text" is="emby-input" placeholder="Jellyfin's ffmpeg" />
+                        <div class="fieldDescription">Only used to sanitize streams. Leave empty to use jellyfin-ffmpeg.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ComskipIniPath">Custom comskip.ini</label>
+                        <input id="ComskipIniPath" type="text" is="emby-input" placeholder="bundled ini" />
+                        <div class="fieldDescription">Optional. Output and threading keys are always controlled by the plugin.</div>
+                    </div>
+
+                    <h3 class="sectionTitle">Processing</h3>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="Sanitize">Sanitize before analysis</label>
+                        <select is="emby-select" id="Sanitize" class="emby-select-withcolor emby-select">
+                            <option value="Never">Never</option>
+                            <option value="TransportStreamsOnly">Transport streams only (.ts)</option>
+                            <option value="Always">Always</option>
+                        </select>
+                        <div class="fieldDescription">Remuxes into a clean temporary copy first, so corrupt OTA packets don't crash comskip. The original file is never modified.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label class="emby-checkbox-label">
+                            <input id="HardwareDecode" type="checkbox" is="emby-checkbox" />
+                            <span>Hardware-assisted decoding in comskip</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label class="emby-checkbox-label">
+                            <input id="LowPriority" type="checkbox" is="emby-checkbox" />
+                            <span>Run at low CPU priority</span>
+                        </label>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ComskipThreads">comskip threads</label>
+                        <input id="ComskipThreads" type="number" is="emby-input" min="1" max="32" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxConcurrentJobs">Files analyzed at once</label>
+                        <input id="MaxConcurrentJobs" type="number" is="emby-input" min="1" max="8" />
+                        <div class="fieldDescription">Restart Jellyfin after changing.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TimeoutMinutes">Timeout per file (minutes)</label>
+                        <input id="TimeoutMinutes" type="number" is="emby-input" min="5" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SettleSeconds">Wait until file is unchanged for (seconds)</label>
+                        <input id="SettleSeconds" type="number" is="emby-input" min="0" />
+                        <div class="fieldDescription">Protects against analyzing a file a post-processor is still writing.</div>
+                    </div>
+
+                    <h3 class="sectionTitle">Segments</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MinSegmentSeconds">Ignore breaks shorter than (seconds)</label>
+                        <input id="MinSegmentSeconds" type="number" is="emby-input" min="1" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="StartPaddingSeconds">Start skip later by (seconds)</label>
+                        <input id="StartPaddingSeconds" type="number" is="emby-input" step="0.1" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="EndPaddingSeconds">End skip earlier by (seconds)</label>
+                        <input id="EndPaddingSeconds" type="number" is="emby-input" step="0.1" />
+                        <div class="fieldDescription">A little padding avoids skipping the first seconds of the show.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="WriteEdlSidecar" type="checkbox" is="emby-checkbox" />
+                            <span>Also write .edl files next to the media</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">For Kodi / MPV. Requires write access to the media folder.</div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = 'bc780563-77ca-4c84-bb79-8993c65bd271';
+                var page = document.querySelector('#ComskipConfigPage');
+                var textFields = ['ComskipPath', 'FfmpegPath', 'ComskipIniPath', 'Sanitize'];
+                var numberFields = ['ComskipThreads', 'MaxConcurrentJobs', 'TimeoutMinutes', 'SettleSeconds',
+                    'MinSegmentSeconds', 'StartPaddingSeconds', 'EndPaddingSeconds'];
+                var boolFields = ['IncludeLiveTvRecordings', 'AutoAnalyzeNewItems', 'HardwareDecode', 'LowPriority', 'WriteEdlSidecar'];
+
+                function normalizeId(id) { return (id || '').replace(/-/g, '').toLowerCase(); }
+
+                function escapeHtml(s) {
+                    return String(s).replace(/[&<>"']/g, function (c) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                    });
+                }
+
+                function loadStatus() {
+                    var el = page.querySelector('#comskipStatus');
+                    ApiClient.getJSON(ApiClient.getUrl('Comskip/Status')).then(function (s) {
+                        var html = '';
+                        html += '<div>comskip: ' + (s.ComskipPath ? '✅ ' + escapeHtml(s.ComskipPath) : '❌ not found — install comskip or set its path below') + '</div>';
+                        html += '<div>ffmpeg: ' + (s.FfmpegPath ? '✅ ' + escapeHtml(s.FfmpegPath) : '⚠️ not found (sanitizing disabled)') + '</div>';
+                        html += '<div>Libraries in scope: ' + s.LibrariesInScope + ' · Analyzed items: ' + s.AnalyzedItems + ' · Queued: ' + s.Queued + '</div>';
+                        if (s.Running && s.Running.length) {
+                            html += '<div>Running: ' + s.Running.map(escapeHtml).join('<br>') + '</div>';
+                        }
+                        if (s.Recent && s.Recent.length) {
+                            html += '<details style="margin-top:.5em"><summary>Recent activity</summary><div style="font-family:monospace;font-size:.85em">'
+                                + s.Recent.slice().reverse().map(escapeHtml).join('<br>') + '</div></details>';
+                        }
+                        el.innerHTML = html;
+                    }, function () {
+                        el.textContent = 'Could not load status.';
+                    });
+                }
+
+                function renderLibraries(folders, selected) {
+                    var list = page.querySelector('#libraryList');
+                    var html = '';
+                    folders.forEach(function (f) {
+                        var id = normalizeId(f.ItemId);
+                        html += '<label class="emby-checkbox-label" style="display:block;margin:.4em 0">'
+                            + '<input type="checkbox" is="emby-checkbox" class="chkLibrary" data-id="' + id + '"'
+                            + (selected.indexOf(id) !== -1 ? ' checked' : '') + ' />'
+                            + '<span>' + escapeHtml(f.Name) + '</span></label>';
+                    });
+                    list.innerHTML = html || '<div class="fieldDescription">No libraries found.</div>';
+                }
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    Promise.all([
+                        ApiClient.getPluginConfiguration(pluginId),
+                        ApiClient.getVirtualFolders()
+                    ]).then(function (results) {
+                        var config = results[0];
+                        var folders = results[1] || [];
+                        textFields.concat(numberFields).forEach(function (k) {
+                            page.querySelector('#' + k).value = config[k] === null || config[k] === undefined ? '' : config[k];
+                        });
+                        boolFields.forEach(function (k) {
+                            page.querySelector('#' + k).checked = !!config[k];
+                        });
+                        renderLibraries(folders, (config.SelectedLibraryIds || []).map(normalizeId));
+                        Dashboard.hideLoadingMsg();
+                    });
+                    loadStatus();
+                });
+
+                page.querySelector('#ComskipConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        textFields.forEach(function (k) { config[k] = page.querySelector('#' + k).value.trim(); });
+                        numberFields.forEach(function (k) {
+                            var raw = page.querySelector('#' + k).value;
+                            var v = k.indexOf('Padding') !== -1 ? parseFloat(raw) : parseInt(raw, 10);
+                            if (!isNaN(v)) { config[k] = v; }
+                        });
+                        boolFields.forEach(function (k) { config[k] = page.querySelector('#' + k).checked; });
+                        config.SelectedLibraryIds = Array.prototype.map.call(
+                            page.querySelectorAll('.chkLibrary:checked'),
+                            function (c) { return c.getAttribute('data-id'); });
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            loadStatus();
+                        });
+                    });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
