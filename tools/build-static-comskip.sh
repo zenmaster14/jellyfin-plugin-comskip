@@ -19,8 +19,10 @@ cd /build
 curl -fsSL -o argtable2.tar.gz https://prdownloads.sourceforge.net/argtable/argtable2-13.tar.gz \
   || curl -fsSL -o argtable2.tar.gz https://deb.debian.org/debian/pool/main/a/argtable2/argtable2_13.orig.tar.gz
 mkdir argtable2 && tar xzf argtable2.tar.gz -C argtable2 --strip-components=1
+# argtable2's 2011-era config.sub predates musl; use automake's current copies.
+cp /usr/share/automake-*/config.sub /usr/share/automake-*/config.guess argtable2/
 (cd argtable2 && ./configure --prefix="$PREFIX" --enable-static --disable-shared \
-    --build="$(gcc -dumpmachine)" && make -j"$JOBS" && make install)
+    && make -j"$JOBS" && make install)
 
 # FFmpeg: only what comskip needs to decode broadcast and common library formats.
 git clone --depth 1 --branch "$FFMPEG_REF" https://github.com/FFmpeg/FFmpeg.git ffmpeg
