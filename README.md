@@ -2,6 +2,16 @@
 
 A Jellyfin 12.x plugin that runs [comskip](https://github.com/erikkaashoek/Comskip) on your DVR recordings (and any other library you choose) and publishes the commercial breaks as **Commercial media segments**. Jellyfin clients then show a **Skip** button, or skip on their own, the same way Intro Skipper handles intros.
 
+> [!IMPORTANT]
+> **Each user must turn on commercial skipping, or this plugin does nothing visible.**
+> Jellyfin ignores Commercial segments by default. Every user who wants to skip commercials has to open
+> **Settings → Playback → Media segments → Commercial** and set it to **Ask to skip** (shows a Skip button)
+> or **Skip** (jumps past the break automatically). It is a per-user setting, so each user, on each profile, must change it.
+
+> [!NOTE]
+> **Your recordings are never changed.** The `.ts` file stays exactly as it was, with no remux to MKV, no chapters added and nothing deleted.
+> The commercial times are stored by the plugin and handed to Jellyfin as segments. See [How it works](#how-it-works) for how to confirm a recording was analyzed.
+
 It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor) and keeps that script's robustness tricks. It does not rewrite your files, though:
 
 | Post-processor script | This plugin |
@@ -54,7 +64,7 @@ In Docker the plugin folder is `/config/plugins`. Building needs the .NET 10 SDK
 1. Open **Dashboard → Plugins → Comskip**. The status box at the top shows whether comskip and ffmpeg were found.
 2. Choose what to analyze. **Live TV recordings** is on by default; tick any other libraries you want.
 3. If you used the old script, clear **Dashboard → Live TV → Recording post-processing**. The plugin replaces it, and remuxing to MKV is no longer required.
-4. Each user sets **Settings → Playback → Media segments → Commercial** to *Ask to skip* or *Skip*.
+4. **Required, for every user:** open **Settings → Playback → Media segments → Commercial** and choose **Ask to skip** or **Skip**. The default ignores commercials, and then no Skip button ever appears, even though the plugin has found the breaks.
 5. To backfill recordings you already have, run **Dashboard → Scheduled Tasks → Comskip → Detect commercials (Comskip)**. It also runs nightly at 03:00 to catch anything missed.
 6. In each library's settings, make sure the **Comskip** media segment provider is enabled. It is enabled by default.
 
@@ -65,6 +75,15 @@ In Docker the plugin folder is `/config/plugins`. Building needs the .NET 10 SDK
 - **Storage:** one JSON file per item in `<config>/plugins/configurations/Comskip/results/`. A result stays valid while the file's size and modification time are unchanged. Remove the item, or delete its result through the API, and its segments go too.
 - **Segments:** after each run the plugin asks Jellyfin to refresh that item's media segments. Breaks are merged, padded (by default 1 s is trimmed off the end of each break so you don't miss the show's first second) and filtered (breaks under 15 s are dropped).
 - **Optional `.edl` sidecars** for Kodi and MPV (off by default).
+
+### Checking that a recording was analyzed
+
+- **Dashboard → Plugins → Comskip:** *Analyzed items* goes up and the recording appears under *Recent activity*.
+- **Dashboard → Logs:** look for lines like `Comskip: found 6 commercial break(s) in …`.
+- **Results files:** `docker exec jellyfin ls /config/plugins/configurations/Comskip/results/` lists one `.json` per analyzed item.
+- **Playback:** a Skip prompt appears at each break. This needs the per-user Playback setting described at the top of this README.
+
+Recordings made before the plugin was installed are only picked up by the scheduled task (run it by hand, or wait for 03:00). New recordings are analyzed once recording stops and the file has been unchanged for 2 minutes. Analysis typically takes 5–20 minutes per hour of TV, depending on CPU.
 
 ### Admin API
 
