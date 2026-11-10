@@ -1,0 +1,67 @@
+# Builds a self-contained comskip binary that can be dropped into the stock Jellyfin
+# container's /config folder, and publishes it on the "comskip-static" release.
+name: Static comskip
+
+on:
+  push:
+    branches: [main]
+    paths: ['tools/*static-comskip.sh', '.github/workflows/comskip-static.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build static comskip
+        run: docker run --rm -v "$PWD:/work" -w /work alpine:3.21 sh tools/build-static-comskip.sh
+
+      - name: Make test recordings
+        run: |
+          mkdir -p test-samples
+          docker run --rm -v "$PWD/test-samples:/s" -w /s --entrypoint sh linuxserver/ffmpeg:latest -c '
+            ffmpeg -hide_banner -v error -f lavfi -i "testsrc2=size=720x480:rate=30000/1001" -f lavfi -i "sine=frequency=440" -t 90 -c:v mpeg2video -b:v 4M -c:a ac3 -f mpegts mpeg2_ac3.ts &&
+            ffmpeg -hide_banner -v error -f lavfi -i "testsrc2=size=1280x720:rate=60000/1001" -f lavfi -i "sine=frequency=660" -t 90 -c:v libx264 -preset ultrafast -c:a aac -f mpegts h264_aac.ts &&
+            ffmpeg -hide_banner -v error -f lavfi -i "testsrc2=size=1280x720:rate=30" -f lavfi -i "sine=frequency=330" -t 60 -c:v libx265 -preset ultrafast -c:a eac3 -f mpegts hevc_eac3.ts'
+          ls -la test-samples
+
+      - name: Test on plain Debian 13 (same base as the Jellyfin image)
+        run: docker run --rm -v "$PWD:/work" debian:trixie-slim sh /work/tools/test-static-comskip.sh
+
+      - name: Rename
+        run: cp out/comskip comskip-linux-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comskip-linux-${{ matrix.arch }}
+          path: comskip-linux-${{ matrix.arch }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          sha256sum comskip-linux-* > SHA256SUMS
+          gh release view comskip-static >/dev/null 2>&1 || gh release create comskip-static \
+            --target "$GITHUB_SHA" --latest=false --title "comskip (static build)" \
+            --notes "Self-contained comskip for Linux (x64 and arm64). Copy into the Jellyfin container's /config/comskip/comskip — see the plugin README."
+          gh release upload comskip-static comskip-linux-x64 comskip-linux-arm64 SHA256SUMS --clobber
