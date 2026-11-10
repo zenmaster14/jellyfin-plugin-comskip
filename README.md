@@ -105,6 +105,14 @@ Detection quality comes down to `comskip.ini`. The bundled ini is the original p
 - *Files analyzed at once* (default 1) only takes effect after a Jellyfin restart.
 - Failed analyses aren't retried until the file changes. You can also force a retry with `POST /Comskip/Analyze/{itemId}`.
 
+## Authorship
+
+This plugin was written entirely by **Claude** (Anthropic's AI model, Claude Opus 5.5), with only minimal input from the repository owner ([zenmaster14](https://github.com/zenmaster14)), who supplied the original idea, requirements and feedback. Claude wrote all of the code, the configuration page, the build and release workflows, the static comskip build, and this README.
+
+The commercial-detection approach and the bundled `comskip.ini` come from Will Carlson's [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor).
+
+Review the code before running it, as you would any third-party plugin. Bug reports and pull requests are welcome.
+
 ## License
 
 MIT. Based on Jellyfin-Comskip-Post-Processor © 2026 Will Carlson (MIT).
