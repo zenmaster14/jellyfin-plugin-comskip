@@ -1,0 +1,51 @@
+# Builds ghcr.io/<owner>/jellyfin-comskip: the official Jellyfin image with comskip added.
+# Rebuilt weekly so it picks up new Jellyfin releases.
+name: Docker image
+
+on:
+  push:
+    branches: [main]
+    paths: ['docker/**', '.github/workflows/docker.yml']
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/jellyfin-comskip" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          load: true
+          tags: ${{ steps.name.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Official Jellyfin image with comskip for the Jellyfin Comskip plugin
+
+      - name: Smoke test
+        run: |
+          docker run --rm --entrypoint sh ${{ steps.name.outputs.image }}:latest -c \
+            'command -v comskip && (comskip --help 2>&1 | head -n 5; true) && test -x /jellyfin/jellyfin'
+
+      - name: Push
+        run: docker push ${{ steps.name.outputs.image }}:latest
