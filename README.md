@@ -18,14 +18,11 @@ It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthril
 - **Jellyfin 12.0 or newer.** Plugins built for 10.11 do not load on 12.x, and this one does not load on 10.11.
 - **comskip installed on the Jellyfin server**, either on `PATH` or at a path you enter in the settings:
   - Ubuntu/Debian bare metal: `sudo apt install comskip`
-  - **Docker:** the official image is based on Debian 13, which no longer ships comskip. Use the ready-made image this repository builds instead: the official Jellyfin image with comskip compiled in, rebuilt every week.
-    ```yaml
-    services:
-      jellyfin:
-        image: ghcr.io/zenmaster14/jellyfin-comskip:latest   # instead of jellyfin/jellyfin
-        # ...everything else stays the same
+  - **Docker (official `jellyfin/jellyfin` image, unmodified):** copy the self-contained comskip build from this repo's [`comskip-static` release](https://github.com/zenmaster14/jellyfin-plugin-comskip/releases/tag/comskip-static) into your config volume. It is statically linked, so it needs nothing from the image, and because it lives in `/config` it survives image updates. The plugin finds `/config/comskip/comskip` on its own.
+    ```bash
+    docker exec -u root jellyfin sh -c 'mkdir -p /config/comskip && curl -fL -o /config/comskip/comskip https://github.com/zenmaster14/jellyfin-plugin-comskip/releases/download/comskip-static/comskip-linux-x64 && chmod 755 /config/comskip/comskip'
     ```
-    The recipe is in [`docker/Dockerfile`](docker/Dockerfile) if you'd rather build it yourself.
+    Replace `jellyfin` with your container's name, and use `comskip-linux-arm64` on ARM (e.g. Raspberry Pi). The build recipe is [`tools/build-static-comskip.sh`](tools/build-static-comskip.sh).
 - ffmpeg is optional. By default the plugin uses Jellyfin's own `jellyfin-ffmpeg` for the sanitizing remux.
 
 ## Install
