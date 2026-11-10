@@ -111,6 +111,24 @@ This plugin was written entirely by **Claude** (Anthropic's AI model, Claude Opu
 
 The commercial-detection approach and the bundled `comskip.ini` come from Will Carlson's [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor).
 
+### Owner input and design decisions
+
+The repository owner's requests and questions, in the order they were raised during development, and the decision each one led to:
+
+1. **Original request:** turn the Jellyfin-Comskip-Post-Processor script into a real Jellyfin plugin, so that comskip runs inside Jellyfin the way Intro Skipper does. This led to a plugin that publishes Commercial media segments, targeting Jellyfin 12.x.
+2. **Repository setup:** the owner asked for help publishing the project on GitHub without prior experience setting up a repository. The owner created the repository and connected GitHub, and the build, release and plugin-repository manifest were automated.
+3. **README link:** the owner asked that the README show this repository's actual plugin-repository URL instead of a placeholder.
+4. **comskip not detected:** the owner reported that comskip installed on the host with `apt` was not found by the plugin, because Jellyfin runs in Docker.
+5. **No custom Jellyfin build:** when offered a custom Docker image with comskip built in, the owner declined, stating:
+   > *"I absolutely do NOT want to make a special version of Jellyfin just to run this plugin."*
+
+   As a result, this project must never require a modified or rebuilt Jellyfin. comskip is supplied instead as a self-contained static binary that is placed in the existing `/config` volume of the unmodified official image. The custom image was removed.
+6. **What happens to the `.ts` file:** the owner asked why recordings were unchanged. The plugin is non-destructive by design, and this was documented prominently.
+7. **Required playback setting:** the owner requested that the README state clearly that each user must set *Commercial* to *Ask to skip* or *Skip*, or the plugin has no visible effect.
+8. **Default skip behavior:** the owner asked whether *Ask to skip* could be made the default for all clients. Jellyfin has no server-side default for this. After reviewing the one workaround, injecting a script into the web client, the owner chose to leave the per-user setting as it is.
+9. **Result file cleanup:** the owner asked how result files are removed when recordings are deleted. Removal already happened whenever Jellyfin drops an item. A nightly safety-net cleanup was added in 1.0.1.0.
+10. **Authorship:** the owner asked that the README document that the plugin was written by Claude, along with this summary of the owner's input.
+
 Review the code before running it, as you would any third-party plugin. Bug reports and pull requests are welcome.
 
 ## License
