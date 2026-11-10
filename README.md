@@ -13,6 +13,11 @@ A Jellyfin 12.x plugin that runs [comskip](https://github.com/erikkaashoek/Comsk
 > The commercial times are stored by the plugin and handed to Jellyfin as segments. See [How it works](#how-it-works) for how to confirm a recording was analyzed.
 > Version 2.0 adds an **optional** setting that permanently cuts the commercials out instead; see [Removing commercials](#removing-commercials-optional-20).
 
+> [!CAUTION]
+> **The "Cut detected commercials" option modifies your original recording files in a way that CANNOT be recovered.**
+> When it is checked, each Live TV `.ts` recording is overwritten with a copy that has the commercials removed. The original file is **not backed up, not moved to a recycle bin and not kept anywhere**, so there is **no way to undo it**, by this plugin, by Jellyfin or by unchecking the option.
+> Anything comskip wrongly marks as a commercial is **lost forever**. Checking the box also applies this to **every recording already analyzed**, immediately. If you are not willing to lose content, leave this option off. The default skip segments never touch your files.
+
 It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor) and keeps that script's robustness tricks. It does not rewrite your files, though:
 
 | Post-processor script | This plugin |
@@ -68,6 +73,7 @@ In Docker the plugin folder is `/config/plugins`. Building needs the .NET 10 SDK
 4. **Required, for every user:** open **Settings → Playback → Media segments → Commercial** and choose **Ask to skip** or **Skip**. The default ignores commercials, and then no Skip button ever appears, even though the plugin has found the breaks.
 5. To backfill recordings you already have, run **Dashboard → Scheduled Tasks → Comskip → Detect commercials (Comskip)**. It also runs nightly at 03:00 to catch anything missed.
 6. In each library's settings, make sure the **Comskip** media segment provider is enabled. It is enabled by default.
+7. **Optional and irreversible:** only check **Cut detected commercials out of Live TV recordings** if you accept that your original recordings will be permanently modified and **cannot be recovered**. See [Removing commercials](#removing-commercials-optional-20).
 
 ## How it works
 
@@ -100,8 +106,14 @@ Recordings made before the plugin was installed are only picked up by the schedu
 
 Turn on **Cut detected commercials out of Live TV recordings** on the plugin's settings page to have the commercials removed from the file itself rather than skipped during playback.
 
-> [!WARNING]
-> This **permanently rewrites your `.ts` recordings and keeps no backup.** If comskip mistakes part of a show for a commercial, that part is gone. Turning the setting on also cuts **every Live TV recording that has already been analyzed**, starting immediately. The settings page asks you to confirm.
+> [!CAUTION]
+> **Irreversible: checking this option modifies the original files, and they CANNOT be recovered.**
+> - The original `.ts` is **overwritten**. No backup, copy or recycle-bin version is kept.
+> - **Unchecking the option later does not restore anything.** It only stops further cuts.
+> - If comskip mistakes part of a show for a commercial, that part of the show is **permanently deleted**.
+> - Turning the option on cuts **every Live TV recording that has already been analyzed**, starting immediately.
+>
+> The settings page asks you to confirm before enabling it. If you need the originals, back them up yourself before turning this on.
 
 - **Only Live TV recordings** (files in the DVR recording folders) are cut, and only `.ts` files. Other libraries keep using skip segments.
 - **No re-encoding.** Each part of the show is stream-copied and the parts are joined, so there is no quality loss and it runs at disk speed. Cuts can only land on keyframes, so up to about one keyframe interval (usually 0.5–2 s) of a commercial can remain at each join. The show itself is never trimmed.
