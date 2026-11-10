@@ -63,6 +63,9 @@ jobs:
           python3 - <<'EOF'
           import json, datetime, os
           version = "${{ steps.v.outputs.version }}"
+          import re
+          m = re.search(r"changelog: >\n((?:  .*\n?)+)", open("build.yaml").read())
+          changelog = " ".join(l.strip() for l in m.group(1).splitlines()) if m else "See GitHub release"
           url = f"https://github.com/${{ github.repository }}/releases/download/${{ steps.v.outputs.tag }}/${{ steps.pkg.outputs.zip }}"
           with open("manifest.json") as f:
               manifest = json.load(f)
@@ -70,7 +73,7 @@ jobs:
           plugin["versions"] = [v for v in plugin["versions"] if v["version"] != version]
           plugin["versions"].insert(0, {
               "version": version,
-              "changelog": "See GitHub release ${{ steps.v.outputs.tag }}",
+              "changelog": changelog,
               "targetAbi": "12.0.0.0",
               "sourceUrl": url,
               "checksum": "${{ steps.pkg.outputs.md5 }}",

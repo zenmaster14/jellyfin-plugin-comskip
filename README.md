@@ -9,15 +9,16 @@ A Jellyfin 12.x plugin that runs [comskip](https://github.com/erikkaashoek/Comsk
 > or **Skip** (jumps past the break automatically). It is a per-user setting, so each user, on each profile, must change it.
 
 > [!NOTE]
-> **Your recordings are never changed.** The `.ts` file stays exactly as it was, with no remux to MKV, no chapters added and nothing deleted.
+> **By default your recordings are never changed.** The `.ts` file stays exactly as it was, with no remux to MKV, no chapters added and nothing deleted.
 > The commercial times are stored by the plugin and handed to Jellyfin as segments. See [How it works](#how-it-works) for how to confirm a recording was analyzed.
+> Version 2.0 adds an **optional** setting that permanently cuts the commercials out instead; see [Removing commercials](#removing-commercials-optional-20).
 
 It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor) and keeps that script's robustness tricks. It does not rewrite your files, though:
 
 | Post-processor script | This plugin |
 |---|---|
 | Configured as the Live TV post-processor | Installed from a plugin repository; analysis starts on its own when a recording finishes |
-| Remuxes `.ts` to `.mkv`, injects chapters, deletes the original | **Never modifies media files.** Results are stored by the plugin and served as segments |
+| Remuxes `.ts` to `.mkv`, injects chapters, deletes the original | By default **never modifies media files**: results are stored by the plugin and served as segments. Optionally (2.0) cuts the commercials out of the `.ts` in place |
 | Needs the Chapter Segments Provider plugin | Is its own segment provider |
 | `batch-comskip.sh` for an existing library | **Scheduled Tasks → Comskip → Detect commercials** |
 | Sanitizing remux so corrupt OTA streams don't crash comskip | Same, into a temporary file in Jellyfin's cache (setting: *Sanitize before analysis*) |
@@ -95,6 +96,23 @@ Recordings made before the plugin was installed are only picked up by the schedu
 | GET | `/Comskip/Results/{itemId}` | The stored result |
 | DELETE | `/Comskip/Results/{itemId}` | Forget the result and remove its segments |
 
+## Removing commercials (optional, 2.0)
+
+Turn on **Cut detected commercials out of Live TV recordings** on the plugin's settings page to have the commercials removed from the file itself rather than skipped during playback.
+
+> [!WARNING]
+> This **permanently rewrites your `.ts` recordings and keeps no backup.** If comskip mistakes part of a show for a commercial, that part is gone. Turning the setting on also cuts **every Live TV recording that has already been analyzed**, starting immediately. The settings page asks you to confirm.
+
+- **Only Live TV recordings** (files in the DVR recording folders) are cut, and only `.ts` files. Other libraries keep using skip segments.
+- **No re-encoding.** Each part of the show is stream-copied and the parts are joined, so there is no quality loss and it runs at disk speed. Cuts can only land on keyframes, so up to about one keyframe interval (usually 0.5–2 s) of a commercial can remain at each join. The show itself is never trimmed.
+- **The original is replaced in one step.** The cut copy is written to a hidden temporary file next to the recording, checked with ffprobe (its length must match the original minus the breaks), and then renamed over the original. If anything fails, the original is left untouched and the recording keeps using skip segments.
+- **Safety guards.** No cut is made if detection would remove more than **50%** of a recording or leave less than **5 minutes** (both adjustable). Recordings that someone is watching are cut later. A cut file is recorded in `cut-ledger.json` and is never analyzed or cut again.
+- **Jellyfin keeps the same item.** Watched status, metadata and artwork are kept. Jellyfin re-reads the new runtime and rebuilds trickplay and chapter images for the shorter file.
+- **Embedded closed captions** (inside the video stream) are kept. Data streams such as SCTE-35 cue messages are dropped.
+- A recording that was skipped by a guard, or failed, is not retried until the file changes. To retry it anyway, run `POST /Comskip/Analyze/{itemId}?force=true`.
+
+The cutting engine is tested on every build. Synthetic MPEG-2/AC3 and H.264/AAC recordings with known commercial blocks are cut, and the tests check that the commercials are gone, the length is correct and audio stays in sync with video.
+
 ## Tuning
 
 Detection quality comes down to `comskip.ini`. The bundled ini is the original project's, tuned for US OTA broadcasts. To change it, copy `Jellyfin.Plugin.Comskip/Configuration/default-comskip.ini` somewhere the `jellyfin` user can read, edit it, and enter that path under **Custom comskip.ini**. The plugin always overrides `output_edl`, `output_ffmeta`, `output_txt`, `live_tv`, `hardware_decode` and `thread_count`.
@@ -128,6 +146,11 @@ The repository owner's requests and questions, in the order they were raised dur
 8. **Default skip behavior:** the owner asked whether *Ask to skip* could be made the default for all clients. Jellyfin has no server-side default for this. After reviewing the one workaround, injecting a script into the web client, the owner chose to leave the per-user setting as it is.
 9. **Result file cleanup:** the owner asked how result files are removed when recordings are deleted. Removal already happened whenever Jellyfin drops an item. A nightly safety-net cleanup was added in 1.0.1.0.
 10. **Authorship:** the owner asked that the README document that the plugin was written by Claude, along with this summary of the owner's input.
+11. **Version 2.0, removing commercials:** the owner asked for an optional checkbox that rewrites the `.ts` file with the commercials actually removed. After reviewing the research, the owner decided:
+    - **no backup** of the original is kept;
+    - cutting applies to **Live TV recordings only**;
+    - once enabled, it applies to **all recordings**, including ones already analyzed;
+    - cuts use **stream copy** (lossless and fast, keyframe-accurate) rather than re-encoding.
 
 Review the code before running it, as you would any third-party plugin. Bug reports and pull requests are welcome.
 
