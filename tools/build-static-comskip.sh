@@ -21,7 +21,8 @@ curl -fsSL -o argtable2.tar.gz https://prdownloads.sourceforge.net/argtable/argt
 mkdir argtable2 && tar xzf argtable2.tar.gz -C argtable2 --strip-components=1
 # argtable2's 2011-era config.sub predates musl; use automake's current copies.
 cp /usr/share/automake-*/config.sub /usr/share/automake-*/config.guess argtable2/
-(cd argtable2 && ./configure --prefix="$PREFIX" --enable-static --disable-shared \
+(cd argtable2 && CFLAGS="-O2 -std=gnu99 -include ctype.h -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types" \
+    ./configure --prefix="$PREFIX" --enable-static --disable-shared \
     && make -j"$JOBS" && make install)
 
 # FFmpeg: only what comskip needs to decode broadcast and common library formats.
