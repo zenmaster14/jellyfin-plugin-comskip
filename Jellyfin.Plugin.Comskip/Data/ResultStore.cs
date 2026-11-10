@@ -68,6 +68,29 @@ public class ResultStore
         }
     }
 
+    /// <summary>Lists the item ids that have a stored result.</summary>
+    /// <returns>Item ids.</returns>
+    public List<Guid> ListItemIds()
+    {
+        var ids = new List<Guid>();
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(Folder, "*.json"))
+            {
+                if (Guid.TryParseExact(System.IO.Path.GetFileNameWithoutExtension(file), "N", out var id))
+                {
+                    ids.Add(id);
+                }
+            }
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Could not list comskip results");
+        }
+
+        return ids;
+    }
+
     /// <summary>Counts stored results.</summary>
     /// <returns>Number of result files.</returns>
     public int Count()

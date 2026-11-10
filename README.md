@@ -72,7 +72,8 @@ In Docker the plugin folder is `/config/plugins`. Building needs the .NET 10 SDK
 
 - **Library watcher:** when Jellyfin adds or updates a video in scope, the item is queued. Items are only analyzed once the recording is no longer in progress and the file hasn't changed for *Settle seconds* (120 by default). Busy files are retried every 5 minutes for up to 24 hours.
 - **Analysis:** comskip runs in its own folder under Jellyfin's cache directory (`<cache>/comskip/<itemId>`), with EDL output forced on, and the folder is deleted afterwards. `.ts` files are first stream-copied into a clean temporary transport stream: corrupt packets are dropped, timestamps regenerated and data/SCTE-35 streams removed.
-- **Storage:** one JSON file per item in `<config>/plugins/configurations/Comskip/results/`. A result stays valid while the file's size and modification time are unchanged. Remove the item, or delete its result through the API, and its segments go too.
+- **Storage:** one JSON file per item in `<config>/plugins/configurations/Comskip/results/`. A result stays valid while the file's size and modification time are unchanged.
+- **Cleanup:** a result file is deleted automatically as soon as Jellyfin removes the item from its library. That covers deleting the recording in Jellyfin, Live TV's "keep up to" limit, and `.ts` files deleted outside Jellyfin once a library scan or the folder monitor notices them missing. As a safety net, the nightly task also deletes any result whose item no longer exists, for example if a recording disappeared while Jellyfin was stopped.
 - **Segments:** after each run the plugin asks Jellyfin to refresh that item's media segments. Breaks are merged, padded (by default 1 s is trimmed off the end of each break so you don't miss the show's first second) and filtered (breaks under 15 s are dropped).
 - **Optional `.edl` sidecars** for Kodi and MPV (off by default).
 

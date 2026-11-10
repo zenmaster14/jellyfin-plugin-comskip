@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.Comskip.Data;
 using Jellyfin.Plugin.Comskip.Services;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
@@ -10,8 +11,8 @@ namespace Jellyfin.Plugin.Comskip.ScheduledTasks;
 
 /// <summary>
 /// Dashboard → Scheduled Tasks → "Detect commercials (Comskip)". Walks every in-scope item and
-/// analyzes anything without a current result. Use it once to backfill an existing library
-/// (the replacement for the old batch-comskip.sh).
+/// analyzes anything without a current result, and deletes results for items that no longer
+/// exist. Use it once to backfill an existing library (the replacement for the old batch-comskip.sh).
 /// </summary>
 public class DetectCommercialsTask : IScheduledTask
 {
@@ -21,22 +22,26 @@ public class DetectCommercialsTask : IScheduledTask
     private readonly ILibraryManager _libraryManager;
     private readonly ItemEligibility _eligibility;
     private readonly CommercialAnalyzer _analyzer;
+    private readonly ResultStore _store;
 
     /// <summary>Initializes a new instance of the <see cref="DetectCommercialsTask"/> class.</summary>
     /// <param name="logger">Logger.</param>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="eligibility">Eligibility rules.</param>
     /// <param name="analyzer">Analyzer.</param>
+    /// <param name="store">Result store.</param>
     public DetectCommercialsTask(
         ILogger<DetectCommercialsTask> logger,
         ILibraryManager libraryManager,
         ItemEligibility eligibility,
-        CommercialAnalyzer analyzer)
+        CommercialAnalyzer analyzer,
+        ResultStore store)
     {
         _logger = logger;
         _libraryManager = libraryManager;
         _eligibility = eligibility;
         _analyzer = analyzer;
+        _store = store;
     }
 
     /// <inheritdoc />
@@ -54,6 +59,8 @@ public class DetectCommercialsTask : IScheduledTask
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        RemoveOrphanedResults();
+
         _eligibility.Invalidate();
         var (libraryIds, _) = _eligibility.GetScope();
         if (libraryIds.Length == 0)
@@ -120,6 +127,30 @@ public class DetectCommercialsTask : IScheduledTask
             "Comskip: finished. {Summary}",
             string.Join(", ", counts.Select(kv => $"{kv.Key}={kv.Value}")));
         progress.Report(100);
+    }
+
+    /// <summary>
+    /// Safety net for results whose item is no longer in Jellyfin's library (normally removed the
+    /// moment Jellyfin drops the item; this catches removals that happened while Jellyfin was
+    /// stopped or the plugin was disabled). Only the library is consulted, never the disk, so an
+    /// offline network share can't wipe valid results.
+    /// </summary>
+    private void RemoveOrphanedResults()
+    {
+        var removed = 0;
+        foreach (var id in _store.ListItemIds())
+        {
+            if (_libraryManager.GetItemById(id) is null)
+            {
+                _store.Delete(id);
+                removed++;
+            }
+        }
+
+        if (removed > 0)
+        {
+            _logger.LogInformation("Comskip: removed {Count} result file(s) for items no longer in the library", removed);
+        }
     }
 
     /// <inheritdoc />
