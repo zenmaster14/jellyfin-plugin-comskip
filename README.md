@@ -75,6 +75,24 @@ In Docker the plugin folder is `/config/plugins`. Building needs the .NET 10 SDK
 6. In each library's settings, make sure the **Comskip** media segment provider is enabled. It is enabled by default.
 7. **Optional and irreversible:** only check **Cut detected commercials out of Live TV recordings** if you accept that your original recordings will be permanently modified and **cannot be recovered**. See [Removing commercials](#removing-commercials-optional-20).
 
+## Screenshots
+
+The plugin's settings page in Jellyfin 12 (**Dashboard → Plugins → Comskip**):
+
+**Status and what to analyze.** The status box confirms that comskip and ffmpeg were found and shows progress.
+
+![Comskip settings: status box and library selection](docs/images/settings-1-status-and-scope.png)
+
+**Tools and processing**
+
+![Comskip settings: tool paths and processing options](docs/images/settings-2-tools-and-processing.png)
+
+**Segment shaping and the optional commercial removal.** See the [irreversibility warning](#removing-commercials-optional-20) before checking *Cut detected commercials*.
+
+![Comskip settings: segment options and commercial removal](docs/images/settings-3-segments-and-removal.png)
+
+![Comskip settings: commercial removal safety limits](docs/images/settings-4-removal-limits.png)
+
 ## How it works
 
 - **Library watcher:** when Jellyfin adds or updates a video in scope, the item is queued. Items are only analyzed once the recording is no longer in progress and the file hasn't changed for *Settle seconds* (120 by default). Busy files are retried every 5 minutes for up to 24 hours.
@@ -135,6 +153,18 @@ Detection quality comes down to `comskip.ini`. The bundled ini is the original p
 - *Files analyzed at once* (default 1) only takes effect after a Jellyfin restart.
 - Failed analyses aren't retried until the file changes. You can also force a retry with `POST /Comskip/Analyze/{itemId}`.
 
+## Acknowledgements
+
+This plugin is a thin layer of Jellyfin integration around the work of other open-source projects. Thank you to:
+
+- **[Comskip](https://github.com/erikkaashoek/Comskip)** by **Erik Kaashoek** and contributors, which does all of the actual commercial detection. Comskip is licensed under the [GNU GPL v2](https://github.com/erikkaashoek/Comskip/blob/master/LICENSE). Learn more and support the project at [kaashoek.com/comskip](https://www.kaashoek.com/comskip/).
+- **[FFmpeg](https://ffmpeg.org/)** by the FFmpeg developers, used to decode video inside comskip, to sanitize recordings, and to cut out commercials. FFmpeg is licensed under the [GNU LGPL v2.1 or later](https://ffmpeg.org/legal.html). The plugin uses Jellyfin's own build, [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), at runtime.
+- **[argtable2](https://argtable.sourceforge.io/)** by Stewart Heitmann (LGPL), which comskip uses to parse its command line.
+- **[Jellyfin](https://jellyfin.org/)** and the [Intro Skipper](https://github.com/intro-skipper/intro-skipper) project, whose media-segment approach this plugin follows.
+- **Will Carlson**'s [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor), the starting point for this project and the source of the bundled `comskip.ini`.
+
+**About the static comskip download.** The [`comskip-static`](https://github.com/zenmaster14/jellyfin-plugin-comskip/releases/tag/comskip-static) release binary combines unmodified Comskip, FFmpeg and argtable2. It is distributed under the GNU GPL v2, the license of Comskip. Its complete corresponding source consists of the upstream repositories above, built with [`tools/build-static-comskip.sh`](tools/build-static-comskip.sh), which records the exact versions used. The plugin's own code is MIT-licensed. It runs comskip and FFmpeg as separate programs and does not include their code.
+
 ## Authorship
 
 This plugin was written entirely by **Claude** (Anthropic's AI model, Claude Opus 5.5), with only minimal input from the repository owner ([zenmaster14](https://github.com/zenmaster14)), who supplied the original idea, requirements and feedback. Claude wrote all of the code, the configuration page, the build and release workflows, the static comskip build, and this README.
@@ -163,6 +193,8 @@ The repository owner's requests and questions, in the order they were raised dur
     - cutting applies to **Live TV recordings only**;
     - once enabled, it applies to **all recordings**, including ones already analyzed;
     - cuts use **stream copy** (lossless and fast, keyframe-accurate) rather than re-encoding.
+12. **Irreversibility warning:** the owner asked that the README state clearly that checking the *Cut* option modifies the original files in a way that cannot be recovered.
+13. **Screenshots and credits:** the owner supplied screenshots of the settings page from their own server for the README, and asked for proper credit to Comskip and FFmpeg.
 
 Review the code before running it, as you would any third-party plugin. Bug reports and pull requests are welcome.
 
