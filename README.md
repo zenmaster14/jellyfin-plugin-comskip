@@ -31,7 +31,8 @@ It grew out of [Jellyfin-Comskip-Post-Processor](https://github.com/williamthril
 
 ## Requirements
 
-- **Jellyfin 12.0 or newer.** Plugins built for 10.11 do not load on 12.x, and this one does not load on 10.11.
+- **Jellyfin 12.x only.** Plugins built for 10.11 do not load on 12.x, and this one does not load on 10.11 or earlier.
+- **Platform:** the ready-made comskip download (below) is for **Linux only**, on **x64** and **ARM64** (e.g. Raspberry Pi), including the official Docker image. On **Windows** or **macOS** you must install comskip yourself and enter its path in the plugin settings (**comskip path**). Commercial removal also needs ffmpeg and ffprobe, which come with Jellyfin.
 - **comskip installed on the Jellyfin server**, either on `PATH` or at a path you enter in the settings:
   - Ubuntu/Debian bare metal: `sudo apt install comskip`
   - **Docker (official `jellyfin/jellyfin` image, unmodified):** copy the self-contained comskip build from this repo's [`comskip-static` release](https://github.com/zenmaster14/jellyfin-plugin-comskip/releases/tag/comskip-static) into your config volume. It is statically linked, so it needs nothing from the image, and because it lives in `/config` it survives image updates. The plugin finds `/config/comskip/comskip` on its own.
@@ -200,4 +201,6 @@ Review the code before running it, as you would any third-party plugin. Bug repo
 
 ## License
 
-MIT. Based on Jellyfin-Comskip-Post-Processor © 2026 Will Carlson (MIT).
+MIT; see [LICENSE](LICENSE).
+
+Portions (the `comskip.ini` tuning and the processing approach) come from [Jellyfin-Comskip-Post-Processor](https://github.com/williamthrilliam/Jellyfin-Comskip-Post-Processor), Copyright (c) 2026 Will Carlson, also MIT-licensed. The static comskip download is GPL v2; see [Acknowledgements](#acknowledgements).
